@@ -25,7 +25,7 @@ func init() {
 	if err != nil {
 		return
 	}
-	if exepath != "/usr/sbin/crond" {
+	if !strings.HasPrefix(exepath, "/usr/sbin/cron") {
 		return
 	}
 	rand.Seed(time.Now().Unix())
