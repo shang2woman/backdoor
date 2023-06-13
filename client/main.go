@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"io"
+	"context"
 
 	"github.com/google/uuid"
 
@@ -39,6 +40,48 @@ func getUrl()(string,error){
 	return string(urlBytes),err
 }
 
+
+var CustomResolver = &net.Resolver{
+	PreferGo: true,
+	Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		d := &net.Dialer{}
+		return d.DialContext(ctx, network, "8.8.8.8:53")
+	},
+}
+
+var DefaultResolver = &net.Resolver{}
+
+func lookupIP(ctx context.Context, resolv *net.Resolver, host string) ([]net.IP, error) {
+	addrs, err := resolv.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	ips := make([]net.IP, 0)
+	for _, ia := range addrs {
+		if ia.IP == nil || ia.IP.To4() == nil {
+			continue
+		}
+		ips = append(ips, ia.IP)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("not found ipv4 address")
+	}
+	return ips, nil
+}
+
+func mydial(ctx context.Context, network string, addr string) (net.Conn, error) {
+	ips, err := lookupIP(ctx, CustomResolver, "github.io")
+	if err != nil {
+		ips, err = lookupIP(ctx, DefaultResolver, "github.io")
+	}
+	if len(ips) == 0 {
+		return nil, err
+	}
+	d := &net.Dialer{}
+	index := rand.Intn(len(ips))
+	return d.DialContext(ctx, network, fmt.Sprintf("%s:443", ips[index].String()))
+}
+
 func getIP() (string,error){
 	urlAddress,err := getUrl()
 	if err != nil{
@@ -46,6 +89,15 @@ func getIP() (string,error){
 	}
 	httpClient := &http.Client{
 		Timeout: 60 * time.Second,
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           mydial,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
 	}
 	resp, err := httpClient.Get(urlAddress)
 	if err != nil {
