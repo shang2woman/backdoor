@@ -40,7 +40,7 @@ func main() {
 		}
 		if len(strarr) == 1 {
 			for _, info := range ginfomgr.All() {
-				fmt.Printf("uuid:%s host:%s ip:%s pid:%d\n", info.UUID, info.HostName, info.LocalIP, info.PID)
+				fmt.Printf("uuid:%s host:%s ip:%s pid:%d time:%s\n", info.UUID, info.HostName, info.LocalIP, info.PID, info.Time)
 			}
 		} else {
 			session(strarr[1], scanner)
@@ -157,6 +157,7 @@ func newConn(conn net.Conn) {
 		conn.Close()
 		return
 	}
+	pinfo.Time = time.Now().Format(time.RFC3339)
 	ginfomgr.Add(pinfo)
 	if gwait.IsNeed(pinfo.UUID, conn, pdecoder) {
 		return

@@ -22,6 +22,7 @@ type Info struct {
 	LocalIP  string `json:"localip,omitempty"`
 	PID      int    `json:"pid,omitempty"`
 	UUID     string `json:"uuid,omitempty"`
+	Time     string `json:"-"`
 }
 
 type Request struct {
