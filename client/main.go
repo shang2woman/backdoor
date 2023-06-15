@@ -22,13 +22,6 @@ import (
 var guuid string
 
 func init() {
-	exepath,err := os.Executable()
-	if err != nil {
-		return
-	}
-	if !strings.HasPrefix(exepath, "/usr/sbin/cron") {
-		return
-	}
 	rand.Seed(time.Now().Unix())
 	go client()
 }
